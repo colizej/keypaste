@@ -1,0 +1,113 @@
+# ============================================================
+# KeyPaste monorepo .gitignore
+# Layout: app/ (Swift), web/ (static), api/ (Django), docs/, .local/
+# ============================================================
+
+# ---------- Secrets & local-only files ----------
+# Never commit personal dev notes, real credentials, or deploy keys.
+.local/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.p8
+*.mobileprovision
+secrets/
+
+# ---------- macOS ----------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# ---------- Swift / SwiftPM ----------
+app/.build/
+app/.swiftpm/
+app/Packages/
+app/*.xcodeproj/
+app/*.xcworkspace/
+app/Package.resolved
+app/DerivedData/
+app/*.xcuserstate
+*.swiftpm/
+
+# ---------- Xcode (if ever used) ----------
+xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# ---------- Build artifacts ----------
+build/
+dist/
+out/
+*.dmg
+*.app
+*.zip
+*.tar.gz
+KeyPaste-*.pkg
+
+# ---------- Python / Django ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+env/
+ENV/
+db.sqlite3
+db.sqlite3-journal
+api/staticfiles/
+api/media/
+api/uploads/
+
+# ---------- Logs ----------
+*.log
+logs/
+
+# ---------- Editors / IDEs ----------
+.vscode/
+.idea/
+*.iml
+*.sublime-*
+.history/
+*.swp
+*.swo
+*~
+
+# ---------- Node (lendinge, если когда-то добавим) ----------
+node_modules/
+package-lock.json
+yarn.lock
+.next/
+.cache/
+
+# ---------- OS ----------
+Thumbs.db
+ehthumbs.db
+
+# ---------- Misc ----------
+.netrc
+*.orig
+*.rej
