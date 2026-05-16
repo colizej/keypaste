@@ -87,4 +87,50 @@ final class MatcherTests: XCTestCase {
         XCTAssertEqual(result?.id, t.id)
         XCTAssertEqual(result?.content, "be right back")
     }
+
+    // MARK: per-app scope
+
+    private func scopedTrigger(_ key: String, scope: String?) -> Trigger {
+        Trigger(id: ULID.generate(),
+                trigger: key, content: "X",
+                title: "", scope: scope,
+                createdAt: t0, updatedAt: t0)
+    }
+
+    func testNilScopeTriggerFiresInAnyApp() {
+        let m = Matcher()
+        m.setTriggers([scopedTrigger("hi", scope: nil)])
+        XCTAssertNotNil(m.match(in: "hi", currentScope: "com.apple.Mail",
+                                now: t0))
+        m.resetCooldown()
+        XCTAssertNotNil(m.match(in: "hi", currentScope: nil, now: t0))
+    }
+
+    func testScopedTriggerFiresOnlyInMatchingApp() {
+        let m = Matcher()
+        m.setTriggers([scopedTrigger("addr", scope: "com.apple.Mail")])
+        XCTAssertNotNil(m.match(in: "addr",
+                                currentScope: "com.apple.Mail",
+                                now: t0))
+        m.resetCooldown()
+        XCTAssertNil(m.match(in: "addr",
+                             currentScope: "com.apple.Safari",
+                             now: t0))
+        XCTAssertNil(m.match(in: "addr", currentScope: nil, now: t0))
+    }
+
+    func testTwoScopedTriggersWithSameKeyChooseByApp() {
+        let m = Matcher()
+        m.setTriggers([
+            scopedTrigger("addr", scope: "com.apple.Mail"),
+            scopedTrigger("addr", scope: "com.apple.MobileSMS"),
+        ])
+        let mail = m.match(in: "addr",
+                           currentScope: "com.apple.Mail", now: t0)
+        m.resetCooldown()
+        let sms  = m.match(in: "addr",
+                           currentScope: "com.apple.MobileSMS", now: t0)
+        XCTAssertEqual(mail?.scope, "com.apple.Mail")
+        XCTAssertEqual(sms?.scope, "com.apple.MobileSMS")
+    }
 }

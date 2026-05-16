@@ -31,11 +31,18 @@ final class Matcher {
             .sorted { $0.trigger.count > $1.trigger.count }
     }
 
-    func match(in buffer: String, now: Date = Date()) -> Trigger? {
+    func match(in buffer: String,
+               currentScope: String? = nil,
+               now: Date = Date()) -> Trigger? {
         if let last = lastFireAt, now.timeIntervalSince(last) < cooldown {
             return nil
         }
         for trigger in triggers where buffer.hasSuffix(trigger.trigger) {
+            // Trigger.scope == nil means "any app". Otherwise the trigger
+            // only fires when the frontmost app's bundle ID matches.
+            if let scope = trigger.scope, scope != currentScope {
+                continue
+            }
             lastFireAt = now
             return trigger
         }

@@ -9,6 +9,14 @@ struct TriggerEditorView: View {
     @State private var triggerKey: String = ""
     @State private var title: String = ""
     @State private var content: String = ""
+    @State private var scope: String? = nil
+    @State private var runningApps: [AppOption] = []
+
+    private struct AppOption: Hashable, Identifiable {
+        let bundleID: String
+        let name: String
+        var id: String { bundleID }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -19,6 +27,31 @@ struct TriggerEditorView: View {
             field(label: "Title",
                   placeholder: "Optional",
                   text: $title)
+
+            HStack(alignment: .firstTextBaseline) {
+                Text("Scope")
+                    .frame(width: 70, alignment: .trailing)
+                    .foregroundColor(.secondary)
+                Picker("", selection: $scope) {
+                    Text("Any app").tag(String?.none)
+                    if !runningApps.isEmpty {
+                        Divider()
+                        ForEach(runningApps) { app in
+                            Text(app.name).tag(Optional(app.bundleID))
+                        }
+                    }
+                    // Show the current scope even if its app isn't running
+                    // right now — otherwise the Picker silently switches
+                    // back to "Any app" and overwrites the user's choice.
+                    if let s = scope,
+                       !runningApps.contains(where: { $0.bundleID == s }) {
+                        Divider()
+                        Text("\(s) (not running)").tag(Optional(s))
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Content")
@@ -78,7 +111,21 @@ struct TriggerEditorView: View {
             }
         }
         .padding(16)
-        .onAppear(perform: loadFields)
+        .onAppear {
+            loadFields()
+            loadRunningApps()
+        }
+    }
+
+    private func loadRunningApps() {
+        runningApps = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular }
+            .compactMap { app -> AppOption? in
+                guard let bid = app.bundleIdentifier else { return nil }
+                let name = app.localizedName ?? bid
+                return AppOption(bundleID: bid, name: name)
+            }
+            .sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
 
     private func field(label: String,
@@ -118,6 +165,7 @@ struct TriggerEditorView: View {
         triggerKey = trigger.trigger
         title = trigger.title
         content = trigger.content
+        scope = trigger.scope
     }
 
     private func saveAction() {
@@ -125,6 +173,7 @@ struct TriggerEditorView: View {
         updated.trigger = triggerKey
         updated.title = title
         updated.content = content
+        updated.scope = scope
         onSave(updated)
     }
 }

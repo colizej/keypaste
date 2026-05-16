@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statsWindow: StatsWindowController?
     private var workspaceObserver: NSObjectProtocol?
     private var cancellables: Set<AnyCancellable> = []
+    private var frontmostBundleID: String?
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -72,9 +73,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.stats = stats
 
+        // Cache the initial frontmost app's bundle ID; subsequent app
+        // switches refresh it via the NSWorkspace observer below.
+        self.frontmostBundleID = NSWorkspace.shared.frontmostApplication?
+            .bundleIdentifier
+
         let engine = Engine(paste: paste,
                             onFire: { [weak stats] trigger in
                                 stats?.recordFire(triggerID: trigger.id)
+                            },
+                            currentScope: { [weak self] in
+                                self?.frontmostBundleID
                             },
                             renderContext: AppDelegate.contextProvider)
         self.engine = engine
@@ -132,13 +141,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         self.statusBar = bar
 
-        // App-switch and secure-input transitions reset Engine state so
-        // a half-typed buffer in app A can't carry into app B.
+        // App-switch resets Engine state AND updates the cached
+        // frontmost bundle ID so per-app-scoped triggers fire in the
+        // right place.
         workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
-        ) { [weak engine] _ in engine?.reset() }
+        ) { [weak self, weak engine] note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey]
+                as? NSRunningApplication
+            self?.frontmostBundleID = app?.bundleIdentifier
+            engine?.reset()
+        }
 
         // Start the event tap, prompting for accessibility if needed.
         // NB: do NOT runModal an NSAlert here — an .accessory-policy app
