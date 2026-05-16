@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 
 @main
@@ -14,12 +15,15 @@ struct KeyPasteMain {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var store: TriggerStore?
+    private var settings: SettingsStore?
     private var engine: Engine?
     private var paste: SystemPasteStrategy?
     private var tap: EventTap?
     private var statusBar: StatusBarController?
     private var mainWindow: MainWindowController?
+    private var settingsWindow: SettingsWindowController?
     private var workspaceObserver: NSObjectProtocol?
+    private var cancellables: Set<AnyCancellable> = []
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -39,7 +43,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.store = store
 
-        let paste = SystemPasteStrategy()
+        let settings = SettingsStore()
+        self.settings = settings
+        // Apply persisted launch-at-login state to SMAppService on startup
+        // so the system mirror matches what the user toggled last session.
+        LaunchAtLoginManager.setEnabled(settings.launchAtLogin)
+        // Observe future toggles. Drop the initial value so we don't
+        // re-register on the same boot.
+        settings.$launchAtLogin
+            .dropFirst()
+            .sink { enabled in LaunchAtLoginManager.setEnabled(enabled) }
+            .store(in: &cancellables)
+
+        let paste = SystemPasteStrategy(restoreDelay: { [weak settings] in
+            settings?.pasteRestoreDelay ?? SettingsStore.defaultPasteRestoreDelay
+        })
         self.paste = paste
 
         let engine = Engine(paste: paste,
@@ -63,9 +81,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let mainWindow = MainWindowController(store: store)
         self.mainWindow = mainWindow
 
+        let settingsWindow = SettingsWindowController(store: settings)
+        self.settingsWindow = settingsWindow
+
         let bar = StatusBarController(
             triggersFolderURL: store.directoryURL,
             onEditTriggers: { [weak mainWindow] in mainWindow?.show() },
+            onOpenSettings: { [weak settingsWindow] in settingsWindow?.show() },
             onPauseChanged: { [weak engine] paused in engine?.setPaused(paused) }
         )
         self.statusBar = bar

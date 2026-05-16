@@ -50,14 +50,13 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     func show() {
         Logger.info("MainWindow.show invoked")
         viewModel.reload()
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        ActivationPolicy.windowOpened()
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
     }
 
     func windowWillClose(_ notification: Notification) {
-        Logger.info("MainWindow closed; reverting to .accessory policy")
-        NSApp.setActivationPolicy(.accessory)
+        Logger.info("MainWindow closed")
+        ActivationPolicy.windowClosed()
     }
 }

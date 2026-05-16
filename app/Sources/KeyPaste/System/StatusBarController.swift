@@ -14,6 +14,7 @@ final class StatusBarController: NSObject {
     private let statusItem: NSStatusItem
     private let triggersFolderURL: URL
     private let onEditTriggers: () -> Void
+    private let onOpenSettings: () -> Void
     private let onPauseChanged: (Bool) -> Void
 
     private var isPaused = false
@@ -21,9 +22,11 @@ final class StatusBarController: NSObject {
 
     init(triggersFolderURL: URL,
          onEditTriggers: @escaping () -> Void,
+         onOpenSettings: @escaping () -> Void,
          onPauseChanged: @escaping (Bool) -> Void) {
         self.triggersFolderURL = triggersFolderURL
         self.onEditTriggers = onEditTriggers
+        self.onOpenSettings = onOpenSettings
         self.onPauseChanged = onPauseChanged
         self.statusItem = NSStatusBar.system
             .statusItem(withLength: NSStatusItem.variableLength)
@@ -63,6 +66,14 @@ final class StatusBarController: NSObject {
 
         menu.addItem(.separator())
 
+        let settings = NSMenuItem(title: "Settings…",
+                                  action: #selector(handleOpenSettings),
+                                  keyEquivalent: ",")
+        settings.target = self
+        menu.addItem(settings)
+
+        menu.addItem(.separator())
+
         let quit = NSMenuItem(title: "Quit KeyPaste",
                               action: #selector(handleQuit),
                               keyEquivalent: "q")
@@ -85,6 +96,10 @@ final class StatusBarController: NSObject {
 
     @objc private func handleOpenFolder() {
         NSWorkspace.shared.open(triggersFolderURL)
+    }
+
+    @objc private func handleOpenSettings() {
+        onOpenSettings()
     }
 
     @objc private func handleQuit() {
