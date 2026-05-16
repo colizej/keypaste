@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-release:
     name: Build .dmg and publish GitHub Release
-    runs-on: macos-13
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
         with:

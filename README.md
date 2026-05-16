@@ -169,7 +169,7 @@ before redistribution.
 
 ## Credits
 
-Built by [Colin Joseph](https://github.com/colizej). The previous Rust + Swift
+Built by [@colizej](https://github.com/colizej). The previous Rust + Swift
 hybrid lives, archived, at
 [keypaste-rust-legacy](https://github.com/colizej/keypaste-rust-legacy).
 Inspired by atext, TextExpander, and Espanso.

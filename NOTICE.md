@@ -26,8 +26,7 @@ at the email address listed in the project README.
 
 The **"KeyPaste" name, the KeyPaste menu-bar icon, and the
 `keypaste.png` artwork in the repository root** are unregistered
-trademarks of the project's copyright holder (Colin Joseph / GitHub
-`@colizej`).
+trademarks of the project's copyright holder (GitHub `@colizej`).
 
 The AGPLv3 grants rights to the **source code**, not to the **brand**.
 Specifically:
