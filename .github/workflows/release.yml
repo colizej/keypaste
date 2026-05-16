@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write   # required to upload a release asset
+
+jobs:
+  build-release:
+    name: Build .dmg and publish GitHub Release
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # release.sh falls back to `git describe`
+
+      - name: Resolve version
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building KeyPaste v$VERSION"
+
+      - name: Run tests
+        working-directory: app
+        run: swift test
+
+      - name: Build .dmg
+        working-directory: app
+        run: ./scripts/release.sh "${{ steps.version.outputs.version }}"
+
+      - name: Extract changelog section for this version
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          awk -v v="$VERSION" '
+            /^## \[/ {
+              if (capture) { exit }
+              if ($0 ~ "\\[" v "\\]") { capture=1; print; next }
+            }
+            capture { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Could not find [$VERSION] section in CHANGELOG.md" >&2
+            echo "Release notes will fall back to the auto-generated commit list." >&2
+            rm -f release-notes.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/dist/KeyPaste-${{ steps.version.outputs.version }}.dmg
+          name: KeyPaste v${{ steps.version.outputs.version }}
+          body_path: release-notes.md
+          generate_release_notes: true   # appends commit-based notes if body is missing
+          draft: false
+          prerelease: false

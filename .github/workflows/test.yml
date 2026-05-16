@@ -1,0 +1,28 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  swift-test:
+    name: swift test
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          swift --version
+          xcode-select -p
+
+      - name: Build
+        working-directory: app
+        run: swift build
+
+      - name: Run tests
+        working-directory: app
+        run: swift test
