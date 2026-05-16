@@ -6,9 +6,10 @@ final class EngineTests: XCTestCase {
     private let epoch = Date(timeIntervalSince1970: 0)
 
     private final class RecordingPaste: PasteStrategy {
-        var calls: [(erase: Int, insert: String, cursor: Int?)] = []
-        func expand(eraseCount: Int, insert text: String, cursorOffset: Int?) {
-            calls.append((eraseCount, text, cursorOffset))
+        var calls: [(erase: Int, insert: String, cursor: Int?, postKeys: [Template.PostKey])] = []
+        func expand(eraseCount: Int, insert text: String,
+                    cursorOffset: Int?, postKeys: [Template.PostKey]) {
+            calls.append((eraseCount, text, cursorOffset, postKeys))
         }
     }
 
@@ -185,6 +186,22 @@ final class EngineTests: XCTestCase {
         let (e, m) = makeEngine([trigger("hi", "hello")])
         for c in "hi" { e.handle(.printable(c), now: t0) }
         XCTAssertNil(m.calls.first?.cursor)
+        XCTAssertEqual(m.calls.first?.postKeys, [])
+    }
+
+    func testEnterTokenFlowsThroughToPaste() {
+        let (e, m) = makeEngine([trigger(";pw", "secret{{enter}}")])
+        for c in ";pw" { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(m.calls.first?.insert, "secret",
+                       "{{enter}} consumed, not in text")
+        XCTAssertEqual(m.calls.first?.postKeys, [.enter])
+    }
+
+    func testTabTokenFlowsThroughToPaste() {
+        let (e, m) = makeEngine([trigger(";login", "user{{tab}}pass{{enter}}")])
+        for c in ";login" { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(m.calls.first?.insert, "userpass")
+        XCTAssertEqual(m.calls.first?.postKeys, [.tab, .enter])
     }
 
     func testClipboardCannotInjectTokenAtExpansion() {

@@ -24,6 +24,12 @@ import Foundation
 //   {{cursor}}                  removed from output; cursorOffset set
 //                               to its grapheme position so PasteStrategy
 //                               can park the caret there
+//   {{enter}}                   removed from output; appended to
+//                               postKeys so PasteStrategy presses Return
+//                               AFTER the paste lands. Use case: form
+//                               submission (e.g. password + Enter).
+//   {{tab}}                     same as {{enter}} but the Tab key —
+//                               handy for moving to the next form field.
 // Unknown tokens are emitted unchanged so typos are visible.
 
 enum Template {
@@ -33,12 +39,21 @@ enum Template {
         let date: Date
     }
 
+    enum PostKey: Equatable {
+        case enter
+        case tab
+    }
+
     struct Rendered: Equatable {
         let text: String
         /// Grapheme-cluster index where the caret should land after the
         /// paste completes. `nil` means "leave the caret wherever the
         /// host app puts it" (which is end-of-paste by default).
         let cursorOffset: Int?
+        /// Key events to post AFTER the paste (and cursor positioning).
+        /// Sourced from {{enter}} / {{tab}} tokens in the order they
+        /// appear in the content.
+        let postKeys: [PostKey]
     }
 
     static func render(_ source: String, context: Context) -> Rendered {
@@ -46,6 +61,7 @@ enum Template {
         var out = ""
         out.reserveCapacity(chars.count)
         var cursorOffset: Int? = nil
+        var postKeys: [PostKey] = []
         var i = 0
         while i < chars.count {
             if i + 1 < chars.count, chars[i] == "{", chars[i + 1] == "{",
@@ -65,6 +81,16 @@ enum Template {
                     i = closeAt + 2
                     continue
                 }
+                if name == "enter" {
+                    postKeys.append(.enter)
+                    i = closeAt + 2
+                    continue
+                }
+                if name == "tab" {
+                    postKeys.append(.tab)
+                    i = closeAt + 2
+                    continue
+                }
 
                 if let value = substitute(name: name, arg: arg, context: context) {
                     out.append(value)
@@ -77,7 +103,7 @@ enum Template {
             out.append(chars[i])
             i += 1
         }
-        return Rendered(text: out, cursorOffset: cursorOffset)
+        return Rendered(text: out, cursorOffset: cursorOffset, postKeys: postKeys)
     }
 
     private static func findClose(_ chars: [Character], from start: Int) -> Int? {

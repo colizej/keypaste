@@ -27,7 +27,14 @@ protocol PasteStrategy: AnyObject {
     // caret should land after the paste finishes — used by the
     // `{{cursor}}` template token. `nil` means "leave the caret at the
     // end of the pasted text" (host-app default).
-    func expand(eraseCount: Int, insert text: String, cursorOffset: Int?)
+    //
+    // `postKeys` is a sequence of key events to post AFTER the paste
+    // (and any cursor positioning). Sourced from {{enter}} / {{tab}}
+    // tokens. Empty array = no-op.
+    func expand(eraseCount: Int,
+                insert text: String,
+                cursorOffset: Int?,
+                postKeys: [Template.PostKey])
 }
 
 final class Engine {
@@ -95,7 +102,8 @@ final class Engine {
                                                context: renderContext())
                 paste.expand(eraseCount: trigger.trigger.count,
                              insert: rendered.text,
-                             cursorOffset: rendered.cursorOffset)
+                             cursorOffset: rendered.cursorOffset,
+                             postKeys: rendered.postKeys)
                 onFire?(trigger)
                 buffer.reset()
             }

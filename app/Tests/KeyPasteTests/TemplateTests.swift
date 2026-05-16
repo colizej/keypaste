@@ -190,4 +190,33 @@ final class TemplateTests: XCTestCase {
         let r = render("\n\n{{name}}\n\n", username: "u")
         XCTAssertEqual(r.text, "\n\nu\n\n")
     }
+
+    // MARK: {{enter}} / {{tab}} post-key tokens
+
+    func testEnterTokenIsStrippedFromOutput() {
+        let r = render("password{{enter}}")
+        XCTAssertEqual(r.text, "password")
+    }
+
+    func testEnterTokenIsRecordedInPostKeys() {
+        let r = render("password{{enter}}")
+        XCTAssertEqual(r.postKeys, [.enter])
+    }
+
+    func testTabTokenIsStrippedAndRecorded() {
+        let r = render("user{{tab}}pass")
+        XCTAssertEqual(r.text, "userpass")
+        XCTAssertEqual(r.postKeys, [.tab])
+    }
+
+    func testMultiplePostKeysPreserveOrder() {
+        let r = render("a{{tab}}b{{enter}}c{{enter}}")
+        XCTAssertEqual(r.text, "abc")
+        XCTAssertEqual(r.postKeys, [.tab, .enter, .enter])
+    }
+
+    func testNoPostKeysWhenAbsent() {
+        let r = render("just text")
+        XCTAssertEqual(r.postKeys, [])
+    }
 }

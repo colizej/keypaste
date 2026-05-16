@@ -39,9 +39,10 @@ struct TriggerEditorView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text("Tokens: {{clipboard}}, {{name}}, {{date}}")
+                    Text("Tokens: {{clipboard}} {{name}} {{date}} {{time}} {{uuid}} {{cursor}} {{enter}} {{tab}}")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .lineLimit(2)
                 }
                 ScrollView {
                     Text(renderedPreview.isEmpty ? "(empty)" : renderedPreview)

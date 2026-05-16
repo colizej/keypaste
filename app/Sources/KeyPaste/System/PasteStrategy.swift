@@ -42,17 +42,22 @@ final class SystemPasteStrategy: PasteStrategy {
         self.tapLocation = tapLocation
     }
 
-    func expand(eraseCount: Int, insert text: String, cursorOffset: Int?) {
+    func expand(eraseCount: Int,
+                insert text: String,
+                cursorOffset: Int?,
+                postKeys: [Template.PostKey]) {
         DispatchQueue.main.async { [weak self] in
             self?.performExpand(eraseCount: eraseCount,
                                 insert: text,
-                                cursorOffset: cursorOffset)
+                                cursorOffset: cursorOffset,
+                                postKeys: postKeys)
         }
     }
 
     private func performExpand(eraseCount: Int,
                                insert text: String,
-                               cursorOffset: Int?) {
+                               cursorOffset: Int?,
+                               postKeys: [Template.PostKey]) {
         let pasteboard = NSPasteboard.general
         let snapshot = Self.snapshot(of: pasteboard)
 
@@ -67,26 +72,39 @@ final class SystemPasteStrategy: PasteStrategy {
         postKey(keycode: CGKeyCode(kVK_ANSI_V),
                 flags: .maskCommand, source: source)
 
-        // {{cursor}} support: after the paste lands the caret at the end
-        // of the inserted text, post LeftArrows to walk it back to the
-        // offset position. text.count uses grapheme clusters, matching
-        // Template's offset metric (emoji/combining marks = 1 step each).
+        // Post-paste actions: cursor positioning and {{enter}}/{{tab}}.
         //
-        // The delay is critical. Cmd+V is processed asynchronously by
-        // the host app: when we post it, the OS schedules the paste but
-        // the text hasn't appeared yet. Posting LeftArrows immediately
-        // sends them to the caret BEFORE the paste lands, so they walk
-        // out of the typed area into the surrounding text. 60ms is
-        // enough on TextEdit/Mail/Safari/Notes on a 2013 MBP — bump if
-        // a particular app misbehaves.
-        if let offset = cursorOffset, offset >= 0, offset < text.count {
-            let leftArrows = text.count - offset
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+        // Cmd+V is processed asynchronously by the host app. Posting
+        // LeftArrow / Return / Tab events immediately sends them to the
+        // caret BEFORE the paste lands, so they go nowhere useful.
+        //
+        // 150ms is a compromise: native AppKit/WebKit (TextEdit, Mail,
+        // Safari, Notes) only needs ~60ms; Electron-based apps (Claude
+        // desktop, Telegram, Slack, Discord) round-trip through their JS
+        // bridge and can need 100-150ms. We bias toward the slower path
+        // because a barely-perceptible extra 90ms is invisible to users
+        // but a mis-aimed caret is very visible.
+        if cursorOffset != nil || !postKeys.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 [weak self] in
                 guard let self = self else { return }
-                for _ in 0..<leftArrows {
-                    self.postKey(keycode: CGKeyCode(kVK_LeftArrow),
-                                 flags: [], source: source)
+                if let offset = cursorOffset,
+                   offset >= 0, offset < text.count {
+                    let leftArrows = text.count - offset
+                    for _ in 0..<leftArrows {
+                        self.postKey(keycode: CGKeyCode(kVK_LeftArrow),
+                                     flags: [], source: source)
+                    }
+                }
+                for key in postKeys {
+                    switch key {
+                    case .enter:
+                        self.postKey(keycode: CGKeyCode(kVK_Return),
+                                     flags: [], source: source)
+                    case .tab:
+                        self.postKey(keycode: CGKeyCode(kVK_Tab),
+                                     flags: [], source: source)
+                    }
                 }
             }
         }
