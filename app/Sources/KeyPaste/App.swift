@@ -17,12 +17,14 @@ struct KeyPasteMain {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var store: TriggerStore?
     private var settings: SettingsStore?
+    private var stats: StatsStore?
     private var engine: Engine?
     private var paste: SystemPasteStrategy?
     private var tap: EventTap?
     private var statusBar: StatusBarController?
     private var mainWindow: MainWindowController?
     private var settingsWindow: SettingsWindowController?
+    private var statsWindow: StatsWindowController?
     private var workspaceObserver: NSObjectProtocol?
     private var cancellables: Set<AnyCancellable> = []
 
@@ -61,7 +63,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         })
         self.paste = paste
 
+        let stats: StatsStore?
+        do {
+            stats = try StatsStore(directory: store.directoryURL)
+        } catch {
+            Logger.error("StatsStore init failed: \(error); fire counts disabled")
+            stats = nil
+        }
+        self.stats = stats
+
         let engine = Engine(paste: paste,
+                            onFire: { [weak stats] trigger in
+                                stats?.recordFire(triggerID: trigger.id)
+                            },
                             renderContext: AppDelegate.contextProvider)
         self.engine = engine
 
@@ -96,6 +110,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         self.settingsWindow = settingsWindow
 
+        let statsWindow: StatsWindowController? = stats.map {
+            StatsWindowController(triggerStore: store, statsStore: $0)
+        }
+        self.statsWindow = statsWindow
+
         let bar = StatusBarController(
             triggersFolderURL: store.directoryURL,
             onEditTriggers: { [weak mainWindow] in mainWindow?.show() },
@@ -108,7 +127,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onImport: { [weak store, weak mainWindow] in
                 guard let store = store else { return }
                 AppDelegate.runImportPanel(store: store, mainWindow: mainWindow)
-            }
+            },
+            onOpenStats: { [weak statsWindow] in statsWindow?.show() }
         )
         self.statusBar = bar
 

@@ -18,6 +18,7 @@ final class StatusBarController: NSObject {
     private let onPauseChanged: (Bool) -> Void
     private let onExport: () -> Void
     private let onImport: () -> Void
+    private let onOpenStats: () -> Void
 
     private var isPaused = false
     private var pauseMenuItem: NSMenuItem!
@@ -27,13 +28,15 @@ final class StatusBarController: NSObject {
          onOpenSettings: @escaping () -> Void,
          onPauseChanged: @escaping (Bool) -> Void,
          onExport: @escaping () -> Void,
-         onImport: @escaping () -> Void) {
+         onImport: @escaping () -> Void,
+         onOpenStats: @escaping () -> Void) {
         self.triggersFolderURL = triggersFolderURL
         self.onEditTriggers = onEditTriggers
         self.onOpenSettings = onOpenSettings
         self.onPauseChanged = onPauseChanged
         self.onExport = onExport
         self.onImport = onImport
+        self.onOpenStats = onOpenStats
         self.statusItem = NSStatusBar.system
             .statusItem(withLength: NSStatusItem.variableLength)
         super.init()
@@ -84,6 +87,12 @@ final class StatusBarController: NSObject {
 
         menu.addItem(.separator())
 
+        let stats = NSMenuItem(title: "Statistics…",
+                               action: #selector(handleOpenStats),
+                               keyEquivalent: "")
+        stats.target = self
+        menu.addItem(stats)
+
         let settings = NSMenuItem(title: "Settings…",
                                   action: #selector(handleOpenSettings),
                                   keyEquivalent: ",")
@@ -126,6 +135,10 @@ final class StatusBarController: NSObject {
 
     @objc private func handleExport() {
         onExport()
+    }
+
+    @objc private func handleOpenStats() {
+        onOpenStats()
     }
 
     @objc private func handleQuit() {

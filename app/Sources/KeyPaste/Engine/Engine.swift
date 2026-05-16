@@ -44,6 +44,7 @@ final class Engine {
     private let matcher: Matcher
     private let paste: PasteStrategy
     private var renderContext: () -> Template.Context
+    private let onFire: ((Trigger) -> Void)?
     private(set) var isPaused: Bool = false
 
     func setTriggers(_ triggers: [Trigger]) {
@@ -64,10 +65,12 @@ final class Engine {
     init(buffer: Buffer = Buffer(),
          matcher: Matcher = Matcher(),
          paste: PasteStrategy,
+         onFire: ((Trigger) -> Void)? = nil,
          renderContext: @escaping () -> Template.Context = Engine.defaultContext) {
         self.buffer = buffer
         self.matcher = matcher
         self.paste = paste
+        self.onFire = onFire
         self.renderContext = renderContext
     }
 
@@ -93,6 +96,7 @@ final class Engine {
                 paste.expand(eraseCount: trigger.trigger.count,
                              insert: rendered.text,
                              cursorOffset: rendered.cursorOffset)
+                onFire?(trigger)
                 buffer.reset()
             }
             return true
