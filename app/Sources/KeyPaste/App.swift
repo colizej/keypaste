@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import UniformTypeIdentifiers
 
 @main
 struct KeyPasteMain {
@@ -99,7 +100,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             triggersFolderURL: store.directoryURL,
             onEditTriggers: { [weak mainWindow] in mainWindow?.show() },
             onOpenSettings: { [weak settingsWindow] in settingsWindow?.show() },
-            onPauseChanged: { [weak engine] paused in engine?.setPaused(paused) }
+            onPauseChanged: { [weak engine] paused in engine?.setPaused(paused) },
+            onExport: { [weak store] in
+                guard let store = store else { return }
+                AppDelegate.runExportPanel(store: store)
+            },
+            onImport: { [weak store, weak mainWindow] in
+                guard let store = store else { return }
+                AppDelegate.runImportPanel(store: store, mainWindow: mainWindow)
+            }
         )
         self.statusBar = bar
 
@@ -148,4 +157,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                 date: Date())
     }
 
+    @MainActor
+    fileprivate static func runExportPanel(store: TriggerStore) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "keypaste-export.json"
+        panel.canCreateDirectories = true
+        panel.title = "Export KeyPaste Triggers"
+
+        ActivationPolicy.windowOpened()
+        defer { ActivationPolicy.windowClosed() }
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let file = try store.load()
+            try ExportImport.export(file, to: url)
+            Logger.info("Exported \(file.triggers.count) trigger(s) to \(url.path)")
+        } catch {
+            Logger.error("Export failed: \(error)")
+        }
+    }
+
+    @MainActor
+    fileprivate static func runImportPanel(store: TriggerStore,
+                                           mainWindow: MainWindowController?) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.title = "Import KeyPaste Triggers"
+
+        ActivationPolicy.windowOpened()
+        defer { ActivationPolicy.windowClosed() }
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let result = try ExportImport.importFile(at: url, into: store)
+            Logger.info("Imported \(result.added) trigger(s), skipped \(result.skipped) duplicate(s)")
+            mainWindow?.viewModel.reload()
+        } catch {
+            Logger.error("Import failed: \(error)")
+        }
+    }
 }

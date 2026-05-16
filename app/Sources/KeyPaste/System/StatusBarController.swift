@@ -16,6 +16,8 @@ final class StatusBarController: NSObject {
     private let onEditTriggers: () -> Void
     private let onOpenSettings: () -> Void
     private let onPauseChanged: (Bool) -> Void
+    private let onExport: () -> Void
+    private let onImport: () -> Void
 
     private var isPaused = false
     private var pauseMenuItem: NSMenuItem!
@@ -23,11 +25,15 @@ final class StatusBarController: NSObject {
     init(triggersFolderURL: URL,
          onEditTriggers: @escaping () -> Void,
          onOpenSettings: @escaping () -> Void,
-         onPauseChanged: @escaping (Bool) -> Void) {
+         onPauseChanged: @escaping (Bool) -> Void,
+         onExport: @escaping () -> Void,
+         onImport: @escaping () -> Void) {
         self.triggersFolderURL = triggersFolderURL
         self.onEditTriggers = onEditTriggers
         self.onOpenSettings = onOpenSettings
         self.onPauseChanged = onPauseChanged
+        self.onExport = onExport
+        self.onImport = onImport
         self.statusItem = NSStatusBar.system
             .statusItem(withLength: NSStatusItem.variableLength)
         super.init()
@@ -63,6 +69,18 @@ final class StatusBarController: NSObject {
                               keyEquivalent: "")
         open.target = self
         menu.addItem(open)
+
+        let importItem = NSMenuItem(title: "Import Triggers…",
+                                    action: #selector(handleImport),
+                                    keyEquivalent: "")
+        importItem.target = self
+        menu.addItem(importItem)
+
+        let exportItem = NSMenuItem(title: "Export Triggers…",
+                                    action: #selector(handleExport),
+                                    keyEquivalent: "")
+        exportItem.target = self
+        menu.addItem(exportItem)
 
         menu.addItem(.separator())
 
@@ -100,6 +118,14 @@ final class StatusBarController: NSObject {
 
     @objc private func handleOpenSettings() {
         onOpenSettings()
+    }
+
+    @objc private func handleImport() {
+        onImport()
+    }
+
+    @objc private func handleExport() {
+        onExport()
     }
 
     @objc private func handleQuit() {
