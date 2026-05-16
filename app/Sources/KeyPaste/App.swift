@@ -23,13 +23,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
-        Logger.info("KeyPaste launched")
+        Logger.info("KeyPaste launched (pid \(ProcessInfo.processInfo.processIdentifier))")
 
         let store: TriggerStore
         do {
             store = try TriggerStore()
         } catch {
-            showFatalAlert(message: "Could not open trigger store: \(error)")
+            // NSAlert.runModal is fatal here: an .accessory app can't show
+            // a modal alert before any activation, so calling it would
+            // block the runloop and freeze the status-bar menu. Log and
+            // bail; the user sees an empty menu bar and the failure in
+            // os_log.
+            Logger.error("Could not open trigger store: \(error)")
             return
         }
         self.store = store
@@ -73,15 +78,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak engine] _ in engine?.reset() }
 
         // Start the event tap, prompting for accessibility if needed.
+        // NB: do NOT runModal an NSAlert here — an .accessory-policy app
+        // hasn't activated yet, so a modal session would block the
+        // runloop and freeze the status-bar menu. The system prompt from
+        // AXIsProcessTrustedWithOptions is the user-facing UI; status bar
+        // stays responsive so the user can quit + retry.
         do {
             let tap = EventTap(engine: engine)
             try tap.start()
             self.tap = tap
+            Logger.info("Event tap running")
         } catch EventTap.TapError.notAccessibilityTrusted {
             _ = PermissionsChecker.isAccessibilityTrusted(prompt: true)
-            showAccessibilityAlert()
+            Logger.warning("Accessibility not granted — enable KeyPaste in System Settings → Privacy & Security → Accessibility, then quit and relaunch.")
         } catch {
-            showFatalAlert(message: "Event tap failed: \(error)")
+            Logger.error("Event tap failed: \(error)")
         }
     }
 
@@ -103,29 +114,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                 date: Date())
     }
 
-    @MainActor
-    private func showAccessibilityAlert() {
-        let alert = NSAlert()
-        alert.messageText = "KeyPaste needs Accessibility access"
-        alert.informativeText = """
-        Open System Settings → Privacy & Security → Accessibility and \
-        enable KeyPaste. macOS only loads this permission at process \
-        start, so quit and relaunch KeyPaste afterwards.
-        """
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
-    @MainActor
-    private func showFatalAlert(message: String) {
-        Logger.error(message)
-        let alert = NSAlert()
-        alert.messageText = "KeyPaste failed to start"
-        alert.informativeText = message
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "Quit")
-        alert.runModal()
-        NSApp.terminate(nil)
-    }
 }
