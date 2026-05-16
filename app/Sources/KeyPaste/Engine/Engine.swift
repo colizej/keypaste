@@ -6,11 +6,14 @@ import Foundation
 // module stays AppKit-free and trivially testable. The System layer
 // supplies the concrete NSPasteboard+CGEvent implementation.
 //
-// Firing model: triggers fire on a word boundary (whitespace/return/tab),
-// matching how every other text expander behaves and avoiding spurious
-// expansion mid-word (`emailing` typed must not fire `email`). Engine
-// itself classifies events into KeyKind; the EventTap layer converts
-// CGEvent → KeyKind so Engine never touches Carbon types.
+// Firing model: instant-fire on suffix match. The moment the typed
+// buffer ends with a trigger string, expansion happens — no boundary
+// key required. Boundaries still reset the buffer (so a new word
+// starts cleanly) but do not themselves trigger anything. Tradeoff:
+// trigger names that are prefixes of common words will fire mid-word;
+// users design trigger names to avoid that.
+// Engine itself classifies events into KeyKind; the EventTap layer
+// converts CGEvent → KeyKind so Engine never touches Carbon types.
 //
 // Threading: Engine assumes serial access. EventTap dispatches each
 // callback to a single serial queue, so no locks are needed here.
@@ -58,23 +61,24 @@ final class Engine {
     var bufferContents: String { buffer.contents }
 
     // Called by EventTap for every key event. The return value indicates
-    // whether the event should pass through to the focused app. Sprint 1
-    // always returns true: paste happens AFTER the boundary reaches the
-    // app, then erase+insert is posted into the event stream.
+    // whether the event should pass through to the focused app — always
+    // true: the typed key reaches the app, then erase+insert is posted
+    // into the event stream after.
     @discardableResult
     func handle(_ kind: KeyKind, now: Date = Date()) -> Bool {
         switch kind {
         case .printable(let c):
             buffer.append(c)
-            return true
-
-        case .boundary(let c):
             if let trigger = matcher.match(in: buffer.contents, now: now) {
                 let rendered = Template.render(trigger.content,
                                                context: renderContext())
-                paste.expand(eraseCount: trigger.trigger.count + 1,
-                             insert: rendered + String(c))
+                paste.expand(eraseCount: trigger.trigger.count,
+                             insert: rendered)
+                buffer.reset()
             }
+            return true
+
+        case .boundary:
             buffer.reset()
             return true
 

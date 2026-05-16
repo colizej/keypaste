@@ -2,12 +2,19 @@ import AppKit
 import SwiftUI
 
 // NSWindow host for the TriggerListView. The status-bar menu's
-// "Edit Triggers…" item routes through `show()`. We keep a single
-// window for the app's lifetime so window state (size, search filter,
-// selection) survives close-then-reopen.
+// "Edit Triggers…" routes through `show()`. We keep a single window
+// for the app's lifetime so its size, search filter, and selection
+// survive close-then-reopen.
+//
+// Activation-policy dance: NSApp starts in .accessory so KeyPaste
+// stays a menu-bar app with no Dock icon. But .accessory windows
+// don't get foregrounded by activate(ignoringOtherApps:) — the editor
+// would open invisibly behind the active app. show() flips to .regular
+// while the window is visible and reverts to .accessory when it closes,
+// via the NSWindowDelegate hook below.
 
 @MainActor
-final class MainWindowController {
+final class MainWindowController: NSObject, NSWindowDelegate {
     let viewModel: TriggerListViewModel
     private let window: NSWindow
 
@@ -28,11 +35,19 @@ final class MainWindowController {
         window.center()
         window.setFrameAutosaveName("KeyPasteMain")
         window.isReleasedWhenClosed = false
+
+        super.init()
+        window.delegate = self
     }
 
     func show() {
         viewModel.reload()
-        window.makeKeyAndOrderFront(nil)
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
     }
 }

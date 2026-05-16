@@ -34,27 +34,44 @@ final class EngineTests: XCTestCase {
         return (engine, mock)
     }
 
-    func testTypingTriggerThenBoundaryFiresExpansion() {
+    func testInstantFireWhenLastPrintableCompletesTrigger() {
         let (e, m) = makeEngine([trigger("email", "u@example.com")])
         for c in "email" { e.handle(.printable(c), now: t0) }
-        e.handle(.boundary(" "), now: t0)
         XCTAssertEqual(m.calls.count, 1)
-        XCTAssertEqual(m.calls[0].erase, 6, "trigger length + boundary")
-        XCTAssertEqual(m.calls[0].insert, "u@example.com ")
+        XCTAssertEqual(m.calls[0].erase, 5, "exact trigger length, no boundary")
+        XCTAssertEqual(m.calls[0].insert, "u@example.com")
     }
 
-    func testBoundaryWithoutMatchDoesNotFire() {
-        let (e, m) = makeEngine([trigger("email")])
-        for c in "hello" { e.handle(.printable(c), now: t0) }
+    func testBufferResetAfterFire() {
+        let (e, _) = makeEngine([trigger("hi", "hello")])
+        for c in "hi" { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(e.bufferContents, "",
+                       "post-fire buffer is empty so the next word starts clean")
+    }
+
+    func testNoFireMidWord() {
+        // 'email' is a suffix once typed, but only AT char 5. Typing one
+        // more char ('i') pushes it past — but the cooldown:0 matcher
+        // would still see "emaili" which doesn't end in any trigger. Good.
+        let (e, m) = makeEngine([trigger("email", "X")])
+        for c in "email" { e.handle(.printable(c), now: t0) }
+        for c in "ing"   { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(m.calls.count, 1, "fires once on 'email', not again")
+    }
+
+    func testBoundaryAfterTriggerDoesNotDoubleFire() {
+        let (e, m) = makeEngine([trigger("hi", "hello")])
+        for c in "hi" { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(m.calls.count, 1)
+        e.handle(.boundary(" "), now: t0)
+        XCTAssertEqual(m.calls.count, 1, "boundary alone never fires")
+    }
+
+    func testBoundaryWithoutPriorMatchJustResets() {
+        let (e, m) = makeEngine([trigger("xyz", "X")])
+        for c in "abc" { e.handle(.printable(c), now: t0) }
         e.handle(.boundary(" "), now: t0)
         XCTAssertTrue(m.calls.isEmpty)
-    }
-
-    func testBoundaryAlwaysResetsBuffer() {
-        let (e, _) = makeEngine([])
-        for c in "abc" { e.handle(.printable(c), now: t0) }
-        XCTAssertEqual(e.bufferContents, "abc")
-        e.handle(.boundary(" "), now: t0)
         XCTAssertEqual(e.bufferContents, "")
     }
 
@@ -84,15 +101,7 @@ final class EngineTests: XCTestCase {
         let (e, m) = makeEngine([trigger("sig", "Best, {{name}}")],
                                 context: ctx)
         for c in "sig" { e.handle(.printable(c), now: t0) }
-        e.handle(.boundary(" "), now: t0)
-        XCTAssertEqual(m.calls.first?.insert, "Best, alice ")
-    }
-
-    func testBoundaryCharIsPreservedInInsertion() {
-        let (e, m) = makeEngine([trigger("ret", "value")])
-        for c in "ret" { e.handle(.printable(c), now: t0) }
-        e.handle(.boundary("\n"), now: t0)
-        XCTAssertEqual(m.calls.first?.insert, "value\n")
+        XCTAssertEqual(m.calls.first?.insert, "Best, alice")
     }
 
     func testResetClearsBuffer() {
@@ -105,30 +114,24 @@ final class EngineTests: XCTestCase {
     func testTwoSequentialExpansionsBothFire() {
         let (e, m) = makeEngine([trigger("hi", "hello")])
         for c in "hi" { e.handle(.printable(c), now: t0) }
-        e.handle(.boundary(" "), now: t0)
         XCTAssertEqual(m.calls.count, 1)
-
+        // Buffer was reset post-fire; typing the trigger again fires again.
         for c in "hi" { e.handle(.printable(c), now: t0) }
-        e.handle(.boundary(" "), now: t0)
         XCTAssertEqual(m.calls.count, 2)
     }
 
     func testSetTriggersUpdatesMatching() {
         let (e, m) = makeEngine([trigger("old", "OLD")])
         for c in "old" { e.handle(.printable(c), now: t0) }
-        e.handle(.boundary(" "), now: t0)
         XCTAssertEqual(m.calls.count, 1)
 
         e.setTriggers([trigger("new", "NEW")])
-
         for c in "old" { e.handle(.printable(c), now: t0) }
-        e.handle(.boundary(" "), now: t0)
         XCTAssertEqual(m.calls.count, 1, "old trigger no longer matches")
 
         for c in "new" { e.handle(.printable(c), now: t0) }
-        e.handle(.boundary(" "), now: t0)
         XCTAssertEqual(m.calls.count, 2)
-        XCTAssertEqual(m.calls.last?.insert, "NEW ")
+        XCTAssertEqual(m.calls.last?.insert, "NEW")
     }
 
     func testClipboardCannotInjectTokenAtExpansion() {
@@ -140,7 +143,6 @@ final class EngineTests: XCTestCase {
         let (e, m) = makeEngine([trigger("c", "[{{clipboard}}]")],
                                 context: ctx)
         e.handle(.printable("c"), now: t0)
-        e.handle(.boundary(" "), now: t0)
-        XCTAssertEqual(m.calls.first?.insert, "[{{date}}] ")
+        XCTAssertEqual(m.calls.first?.insert, "[{{date}}]")
     }
 }
