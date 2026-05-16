@@ -15,6 +15,8 @@ final class TriggerStore {
     private let fileURL: URL
     private let backupURL: URL
 
+    var directoryURL: URL { fileURL.deletingLastPathComponent() }
+
     var onSave: ((TriggerFile) -> Void)?
 
     init() throws {
