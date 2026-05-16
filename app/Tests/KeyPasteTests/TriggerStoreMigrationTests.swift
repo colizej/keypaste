@@ -45,6 +45,29 @@ final class TriggerStoreMigrationTests: XCTestCase {
         XCTAssertEqual(notified?.triggers.first?.id, trigger.id)
     }
 
+    func testMultiLineContentWithBlankLinesSurvivesRoundTrip() throws {
+        let store = try TriggerStore(directory: tempDir)
+        let multi = """
+        Line one.
+
+        Line three after a blank.
+
+
+        Line six after two blanks.
+        """
+        let t = Trigger(id: ULID.generate(),
+                        trigger: ";multi", content: multi,
+                        title: "", scope: nil,
+                        createdAt: Date(), updatedAt: Date())
+        var file = TriggerFile.empty()
+        file.triggers = [t]
+        try store.save(file)
+
+        let reloaded = try store.load()
+        XCTAssertEqual(reloaded.triggers.first?.content, multi,
+                       "blank lines must round-trip through JSON encode/decode")
+    }
+
     func testLoadingV2FileDoesNotCreateLegacyBackup() throws {
         let store = try TriggerStore(directory: tempDir)
         try store.save(TriggerFile.empty())

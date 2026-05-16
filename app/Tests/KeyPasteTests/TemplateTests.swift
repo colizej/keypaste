@@ -173,4 +173,21 @@ final class TemplateTests: XCTestCase {
         XCTAssertEqual(r.text, "Dear ,\n\nBest,\nalice")
         XCTAssertEqual(r.cursorOffset, 5)
     }
+
+    // MARK: empty-line preservation (regression check)
+
+    func testConsecutiveNewlinesPassedThroughVerbatim() {
+        let r = render("Line 1\n\n\nLine 2")
+        XCTAssertEqual(r.text, "Line 1\n\n\nLine 2")
+    }
+
+    func testEmptyLineBetweenTokens() {
+        let r = render("{{name}}\n\n{{date}}", username: "alice")
+        XCTAssertEqual(r.text, "alice\n\n1970-01-01")
+    }
+
+    func testTrailingAndLeadingNewlinesKept() {
+        let r = render("\n\n{{name}}\n\n", username: "u")
+        XCTAssertEqual(r.text, "\n\nu\n\n")
+    }
 }

@@ -51,6 +51,12 @@ struct TriggerEditorView: View {
                                          : .primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
+                        // .fixedSize on the vertical axis forces Text to
+                        // allocate full height for every line break,
+                        // including consecutive \n\n. Without this,
+                        // SwiftUI compresses empty lines and they
+                        // visually disappear from the preview.
+                        .fixedSize(horizontal: false, vertical: true)
                         .padding(8)
                 }
                 .frame(minHeight: 80, maxHeight: 140)

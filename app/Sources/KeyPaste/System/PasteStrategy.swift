@@ -67,16 +67,27 @@ final class SystemPasteStrategy: PasteStrategy {
         postKey(keycode: CGKeyCode(kVK_ANSI_V),
                 flags: .maskCommand, source: source)
 
-        // {{cursor}} support: after the paste lands the caret at end of
-        // text, post LeftArrows to walk it back to the offset position.
-        // text.count uses grapheme clusters which is what we want for
-        // visible cursor positions; emoji and combining marks count as
-        // one step each.
+        // {{cursor}} support: after the paste lands the caret at the end
+        // of the inserted text, post LeftArrows to walk it back to the
+        // offset position. text.count uses grapheme clusters, matching
+        // Template's offset metric (emoji/combining marks = 1 step each).
+        //
+        // The delay is critical. Cmd+V is processed asynchronously by
+        // the host app: when we post it, the OS schedules the paste but
+        // the text hasn't appeared yet. Posting LeftArrows immediately
+        // sends them to the caret BEFORE the paste lands, so they walk
+        // out of the typed area into the surrounding text. 60ms is
+        // enough on TextEdit/Mail/Safari/Notes on a 2013 MBP — bump if
+        // a particular app misbehaves.
         if let offset = cursorOffset, offset >= 0, offset < text.count {
             let leftArrows = text.count - offset
-            for _ in 0..<leftArrows {
-                postKey(keycode: CGKeyCode(kVK_LeftArrow),
-                        flags: [], source: source)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                [weak self] in
+                guard let self = self else { return }
+                for _ in 0..<leftArrows {
+                    self.postKey(keycode: CGKeyCode(kVK_LeftArrow),
+                                 flags: [], source: source)
+                }
             }
         }
 
