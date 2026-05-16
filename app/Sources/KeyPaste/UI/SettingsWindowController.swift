@@ -4,10 +4,12 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let window: NSWindow
-    private static let contentSize = NSSize(width: 420, height: 320)
+    private static let contentSize = NSSize(width: 480, height: 620)
 
-    init(store: SettingsStore) {
-        let host = NSHostingController(rootView: SettingsView(store: store))
+    init(store: SettingsStore,
+         onInstallPack: @escaping (SnippetPack) -> SnippetPacks.InstallResult) {
+        let view = SettingsView(store: store, onInstallPack: onInstallPack)
+        let host = NSHostingController(rootView: view)
 
         self.window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.contentSize),

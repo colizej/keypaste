@@ -81,7 +81,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let mainWindow = MainWindowController(store: store)
         self.mainWindow = mainWindow
 
-        let settingsWindow = SettingsWindowController(store: settings)
+        let settingsWindow = SettingsWindowController(
+            store: settings,
+            onInstallPack: { [weak store, weak mainWindow] pack in
+                guard let store = store else {
+                    return SnippetPacks.InstallResult(added: 0, skipped: 0)
+                }
+                let result = SnippetPacks.install(pack, into: store)
+                // Refresh the editor's list view if it's open.
+                mainWindow?.viewModel.reload()
+                return result
+            }
+        )
         self.settingsWindow = settingsWindow
 
         let bar = StatusBarController(
