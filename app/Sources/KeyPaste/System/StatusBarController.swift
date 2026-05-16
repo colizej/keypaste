@@ -4,20 +4,27 @@ import Foundation
 // NSStatusItem in the menu bar. NSObject subclass so the menu items can
 // route through @objc selectors back to our handlers.
 //
-// Pause/Resume is intentionally absent in Sprint 1 — adding it cleanly
-// needs an "enabled" flag on Engine plus state on EventTap, which is
-// noise on top of the v1 goal of "trigger expansion works at all".
-// Add it in Sprint 2 alongside Settings.
+// Icon: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath) reads
+// AppIcon.icns from the .app bundle and we downscale to 18×18 for the
+// menu bar. isTemplate stays false because the source is a colored
+// icon, not a B&W glyph — macOS won't tint it. If the artwork ever
+// becomes monochrome, flip isTemplate.
 
 final class StatusBarController: NSObject {
     private let statusItem: NSStatusItem
     private let triggersFolderURL: URL
     private let onEditTriggers: () -> Void
+    private let onPauseChanged: (Bool) -> Void
+
+    private var isPaused = false
+    private var pauseMenuItem: NSMenuItem!
 
     init(triggersFolderURL: URL,
-         onEditTriggers: @escaping () -> Void) {
+         onEditTriggers: @escaping () -> Void,
+         onPauseChanged: @escaping (Bool) -> Void) {
         self.triggersFolderURL = triggersFolderURL
         self.onEditTriggers = onEditTriggers
+        self.onPauseChanged = onPauseChanged
         self.statusItem = NSStatusBar.system
             .statusItem(withLength: NSStatusItem.variableLength)
         super.init()
@@ -26,10 +33,10 @@ final class StatusBarController: NSObject {
 
     private func configure() {
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "keyboard",
-                                accessibilityDescription: "KeyPaste")
-            image?.isTemplate = true
-            button.image = image
+            let icon = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
+            icon.size = NSSize(width: 18, height: 18)
+            icon.isTemplate = false
+            button.image = icon
             button.toolTip = "KeyPaste"
         }
 
@@ -40,6 +47,13 @@ final class StatusBarController: NSObject {
                               keyEquivalent: "")
         edit.target = self
         menu.addItem(edit)
+
+        let pause = NSMenuItem(title: "Pause",
+                               action: #selector(handleTogglePause),
+                               keyEquivalent: "")
+        pause.target = self
+        menu.addItem(pause)
+        pauseMenuItem = pause
 
         let open = NSMenuItem(title: "Open Triggers Folder",
                               action: #selector(handleOpenFolder),
@@ -60,6 +74,13 @@ final class StatusBarController: NSObject {
 
     @objc private func handleEdit() {
         onEditTriggers()
+    }
+
+    @objc private func handleTogglePause() {
+        isPaused.toggle()
+        pauseMenuItem.title = isPaused ? "Resume" : "Pause"
+        statusItem.button?.appearsDisabled = isPaused
+        onPauseChanged(isPaused)
     }
 
     @objc private func handleOpenFolder() {

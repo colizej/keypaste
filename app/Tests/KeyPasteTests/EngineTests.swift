@@ -134,6 +134,45 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(m.calls.last?.insert, "NEW")
     }
 
+    func testPausedEngineIgnoresPrintableEvents() {
+        let (e, m) = makeEngine([trigger("hi", "hello")])
+        e.setPaused(true)
+        for c in "hi" { e.handle(.printable(c), now: t0) }
+        XCTAssertTrue(m.calls.isEmpty)
+        XCTAssertEqual(e.bufferContents, "", "no buffer accumulation while paused")
+    }
+
+    func testResumeAfterPauseStartsFresh() {
+        let (e, m) = makeEngine([trigger("hi", "hello")])
+        for c in "hi" { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(m.calls.count, 1)
+
+        e.setPaused(true)
+        for c in "hi" { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(m.calls.count, 1, "no fire while paused")
+
+        e.setPaused(false)
+        for c in "hi" { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(m.calls.count, 2, "fires again after resume")
+    }
+
+    func testSetPausedTrueClearsBuffer() {
+        let (e, _) = makeEngine([])
+        for c in "abc" { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(e.bufferContents, "abc")
+        e.setPaused(true)
+        XCTAssertEqual(e.bufferContents, "")
+    }
+
+    func testIsPausedReflectsState() {
+        let (e, _) = makeEngine([])
+        XCTAssertFalse(e.isPaused)
+        e.setPaused(true)
+        XCTAssertTrue(e.isPaused)
+        e.setPaused(false)
+        XCTAssertFalse(e.isPaused)
+    }
+
     func testClipboardCannotInjectTokenAtExpansion() {
         // Belt-and-suspenders: even if a clipboard string contains a
         // template token, Engine renders trigger.content through Template,

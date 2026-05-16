@@ -39,9 +39,21 @@ final class Engine {
     private let matcher: Matcher
     private let paste: PasteStrategy
     private var renderContext: () -> Template.Context
+    private(set) var isPaused: Bool = false
 
     func setTriggers(_ triggers: [Trigger]) {
         matcher.setTriggers(triggers)
+    }
+
+    // Soft pause: handle() short-circuits while paused so no buffer
+    // state accumulates from typing. On resume we start with an empty
+    // buffer; whatever the user typed during the pause is not retained.
+    func setPaused(_ paused: Bool) {
+        isPaused = paused
+        if paused {
+            buffer.reset()
+            matcher.resetCooldown()
+        }
     }
 
     init(buffer: Buffer = Buffer(),
@@ -66,6 +78,7 @@ final class Engine {
     // into the event stream after.
     @discardableResult
     func handle(_ kind: KeyKind, now: Date = Date()) -> Bool {
+        if isPaused { return true }
         switch kind {
         case .printable(let c):
             buffer.append(c)

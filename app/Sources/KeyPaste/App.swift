@@ -65,7 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let bar = StatusBarController(
             triggersFolderURL: store.directoryURL,
-            onEditTriggers: { [weak mainWindow] in mainWindow?.show() }
+            onEditTriggers: { [weak mainWindow] in mainWindow?.show() },
+            onPauseChanged: { [weak engine] paused in engine?.setPaused(paused) }
         )
         self.statusBar = bar
 
