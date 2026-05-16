@@ -31,12 +31,14 @@ import Foundation
 final class SystemPasteStrategy: PasteStrategy {
     static let injectedSourceUserData: Int64 = 0x4B70_5374  // ASCII 'KpSt'
 
-    private let restoreDelay: TimeInterval
+    // Closure so SettingsStore can drive the value live without rebuilding
+    // the strategy. Defaults to 250ms for callers who don't care.
+    private let restoreDelayProvider: () -> TimeInterval
     private let tapLocation: CGEventTapLocation
 
-    init(restoreDelay: TimeInterval = 0.25,
+    init(restoreDelay: @escaping () -> TimeInterval = { 0.25 },
          tapLocation: CGEventTapLocation = .cghidEventTap) {
-        self.restoreDelay = restoreDelay
+        self.restoreDelayProvider = restoreDelay
         self.tapLocation = tapLocation
     }
 
@@ -61,7 +63,7 @@ final class SystemPasteStrategy: PasteStrategy {
         postKey(keycode: CGKeyCode(kVK_ANSI_V),
                 flags: .maskCommand, source: source)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + restoreDelay) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + restoreDelayProvider()) {
             Self.restore(snapshot, into: pasteboard)
         }
     }
