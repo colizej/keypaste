@@ -10,8 +10,20 @@ filled with live data (clipboard, date, your name, fresh UUID, …).
 [![Tests](https://img.shields.io/badge/tests-127%20passing-brightgreen.svg)](#tests)
 
 <p align="center">
-  <img src="docs/screenshots/hero.png" alt="KeyPaste in action" width="640">
+  <img src="docs/screenshots/menu.png" alt="KeyPaste menu-bar dropdown" width="380">
 </p>
+
+---
+
+## Screenshots
+
+| Trigger editor | Edit a trigger |
+|---|---|
+| <img src="docs/screenshots/edit_triggers.png" alt="Trigger list" width="420"> | <img src="docs/screenshots/edit_triggers_item.png" alt="Trigger editor with preview" width="420"> |
+
+| Settings | Statistics |
+|---|---|
+| <img src="docs/screenshots/settings.png" alt="Settings window" width="420"> | <img src="docs/screenshots/statistics.png" alt="Statistics window" width="420"> |
 
 ---
 
