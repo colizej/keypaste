@@ -26,6 +26,8 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>© 2026 Colin Joseph. KeyPaste is licensed under AGPLv3. "KeyPaste" and its icon are trademarks. See NOTICE.md.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticTermination</key>
