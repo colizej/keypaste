@@ -6,9 +6,9 @@ final class EngineTests: XCTestCase {
     private let epoch = Date(timeIntervalSince1970: 0)
 
     private final class RecordingPaste: PasteStrategy {
-        var calls: [(erase: Int, insert: String)] = []
-        func expand(eraseCount: Int, insert text: String) {
-            calls.append((eraseCount, text))
+        var calls: [(erase: Int, insert: String, cursor: Int?)] = []
+        func expand(eraseCount: Int, insert text: String, cursorOffset: Int?) {
+            calls.append((eraseCount, text, cursorOffset))
         }
     }
 
@@ -171,6 +171,20 @@ final class EngineTests: XCTestCase {
         XCTAssertTrue(e.isPaused)
         e.setPaused(false)
         XCTAssertFalse(e.isPaused)
+    }
+
+    func testCursorTokenFlowsThroughToPaste() {
+        let (e, m) = makeEngine([trigger(";l", "Dear {{cursor}},\nBest")])
+        for c in ";l" { e.handle(.printable(c), now: t0) }
+        XCTAssertEqual(m.calls.first?.insert, "Dear ,\nBest")
+        XCTAssertEqual(m.calls.first?.cursor, 5,
+                       "caret should land between 'Dear ' and ','")
+    }
+
+    func testNoCursorTokenLeavesOffsetNil() {
+        let (e, m) = makeEngine([trigger("hi", "hello")])
+        for c in "hi" { e.handle(.printable(c), now: t0) }
+        XCTAssertNil(m.calls.first?.cursor)
     }
 
     func testClipboardCannotInjectTokenAtExpansion() {

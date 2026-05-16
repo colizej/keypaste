@@ -42,13 +42,17 @@ final class SystemPasteStrategy: PasteStrategy {
         self.tapLocation = tapLocation
     }
 
-    func expand(eraseCount: Int, insert text: String) {
+    func expand(eraseCount: Int, insert text: String, cursorOffset: Int?) {
         DispatchQueue.main.async { [weak self] in
-            self?.performExpand(eraseCount: eraseCount, insert: text)
+            self?.performExpand(eraseCount: eraseCount,
+                                insert: text,
+                                cursorOffset: cursorOffset)
         }
     }
 
-    private func performExpand(eraseCount: Int, insert text: String) {
+    private func performExpand(eraseCount: Int,
+                               insert text: String,
+                               cursorOffset: Int?) {
         let pasteboard = NSPasteboard.general
         let snapshot = Self.snapshot(of: pasteboard)
 
@@ -62,6 +66,19 @@ final class SystemPasteStrategy: PasteStrategy {
         }
         postKey(keycode: CGKeyCode(kVK_ANSI_V),
                 flags: .maskCommand, source: source)
+
+        // {{cursor}} support: after the paste lands the caret at end of
+        // text, post LeftArrows to walk it back to the offset position.
+        // text.count uses grapheme clusters which is what we want for
+        // visible cursor positions; emoji and combining marks count as
+        // one step each.
+        if let offset = cursorOffset, offset >= 0, offset < text.count {
+            let leftArrows = text.count - offset
+            for _ in 0..<leftArrows {
+                postKey(keycode: CGKeyCode(kVK_LeftArrow),
+                        flags: [], source: source)
+            }
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + restoreDelayProvider()) {
             Self.restore(snapshot, into: pasteboard)

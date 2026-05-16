@@ -91,13 +91,20 @@ struct TriggerEditorView: View {
     // Live-rendered preview using the same Template pass as production.
     // Clipboard is read at every body recomputation; cheap and means the
     // preview reflects whatever is currently in the system pasteboard.
+    // {{cursor}} is shown as `▏` so the user can see where the caret
+    // will land — production paste actually strips it.
     private var renderedPreview: String {
         let ctx = Template.Context(
             clipboard: NSPasteboard.general.string(forType: .string) ?? "",
             username: NSUserName(),
             date: Date()
         )
-        return Template.render(content, context: ctx)
+        let rendered = Template.render(content, context: ctx)
+        guard let offset = rendered.cursorOffset else { return rendered.text }
+        var out = rendered.text
+        let idx = out.index(out.startIndex, offsetBy: offset)
+        out.insert("\u{258F}", at: idx)  // ▏ left one-eighth block
+        return out
     }
 
     private func loadFields() {

@@ -3,72 +3,174 @@ import XCTest
 
 final class TemplateTests: XCTestCase {
     private let epoch = Date(timeIntervalSince1970: 0)
+    private let weekday2 = Date(timeIntervalSince1970: 1_700_000_000)
+    // 2023-11-14T22:13:20Z = Tuesday
+
+    private func render(_ s: String,
+                        clipboard: String = "",
+                        username: String = "",
+                        date: Date? = nil) -> Template.Rendered {
+        let ctx = Template.Context(clipboard: clipboard,
+                                   username: username,
+                                   date: date ?? epoch)
+        return Template.render(s, context: ctx)
+    }
+
+    // MARK: existing single-pass + injection guards
 
     func testReplacesClipboardPlaceholder() {
-        let ctx = Template.Context(clipboard: "hello", username: "u", date: epoch)
-        XCTAssertEqual(Template.render("Got: {{clipboard}}", context: ctx),
+        XCTAssertEqual(render("Got: {{clipboard}}", clipboard: "hello").text,
                        "Got: hello")
     }
 
     func testReplacesUsernamePlaceholder() {
-        let ctx = Template.Context(clipboard: "", username: "alice", date: epoch)
-        XCTAssertEqual(Template.render("Hi, {{name}}!", context: ctx),
+        XCTAssertEqual(render("Hi, {{name}}!", username: "alice").text,
                        "Hi, alice!")
     }
 
     func testReplacesDatePlaceholder() {
-        let ctx = Template.Context(clipboard: "", username: "", date: epoch)
-        XCTAssertEqual(Template.render("Today is {{date}}", context: ctx),
-                       "Today is 1970-01-01")
+        XCTAssertEqual(render("Today is {{date}}").text, "Today is 1970-01-01")
     }
 
-    // Clipboard content containing a literal {{date}} must NOT be re-expanded.
-    // The sequential-replace implementation had this bug; single-pass fixes it.
     func testClipboardCannotInjectAnotherPlaceholder() {
-        let ctx = Template.Context(clipboard: "{{date}}", username: "u", date: epoch)
-        XCTAssertEqual(Template.render("[{{clipboard}}]", context: ctx),
-                       "[{{date}}]")
+        let r = render("[{{clipboard}}]", clipboard: "{{date}}")
+        XCTAssertEqual(r.text, "[{{date}}]")
     }
 
     func testUnknownTokenIsLeftLiteral() {
-        let ctx = Template.Context(clipboard: "", username: "", date: epoch)
-        XCTAssertEqual(Template.render("hi {{nope}} bye", context: ctx),
-                       "hi {{nope}} bye")
+        XCTAssertEqual(render("hi {{nope}} bye").text, "hi {{nope}} bye")
     }
 
     func testWhitespaceInsidePlaceholderIsTolerated() {
-        let ctx = Template.Context(clipboard: "", username: "bob", date: epoch)
-        XCTAssertEqual(Template.render("{{  name  }}", context: ctx), "bob")
+        XCTAssertEqual(render("{{  name  }}", username: "bob").text, "bob")
     }
 
     func testUnterminatedPlaceholderIsLeftLiteral() {
-        let ctx = Template.Context(clipboard: "x", username: "", date: epoch)
-        XCTAssertEqual(Template.render("a {{clipboard but no close",
-                                       context: ctx),
+        XCTAssertEqual(render("a {{clipboard but no close").text,
                        "a {{clipboard but no close")
     }
 
     func testMultiplePlaceholdersInOneString() {
-        let ctx = Template.Context(clipboard: "C", username: "U", date: epoch)
-        XCTAssertEqual(Template.render("{{name}}/{{clipboard}}/{{date}}",
-                                       context: ctx),
-                       "U/C/1970-01-01")
+        let r = render("{{name}}/{{clipboard}}/{{date}}",
+                       clipboard: "C", username: "U")
+        XCTAssertEqual(r.text, "U/C/1970-01-01")
     }
 
     func testAdjacentPlaceholdersWithNoSeparator() {
-        let ctx = Template.Context(clipboard: "C", username: "U", date: epoch)
-        XCTAssertEqual(Template.render("{{name}}{{clipboard}}", context: ctx),
-                       "UC")
+        let r = render("{{name}}{{clipboard}}", clipboard: "C", username: "U")
+        XCTAssertEqual(r.text, "UC")
     }
 
     func testEmptyStringRendersEmpty() {
-        let ctx = Template.Context(clipboard: "x", username: "y", date: epoch)
-        XCTAssertEqual(Template.render("", context: ctx), "")
+        XCTAssertEqual(render("").text, "")
     }
 
     func testNoPlaceholdersIsIdentity() {
-        let ctx = Template.Context(clipboard: "x", username: "y", date: epoch)
-        XCTAssertEqual(Template.render("just plain text", context: ctx),
-                       "just plain text")
+        XCTAssertEqual(render("just plain text").text, "just plain text")
+    }
+
+    // MARK: new tokens
+
+    func testTimeToken() {
+        // epoch is 1970-01-01 00:00:00 UTC; current device TZ formats it
+        // — we just assert the shape (HH:mm) and length.
+        let r = render("at {{time}}")
+        XCTAssertTrue(r.text.hasPrefix("at "))
+        let suffix = String(r.text.dropFirst(3))
+        XCTAssertEqual(suffix.count, 5, "HH:mm")
+        XCTAssertEqual(suffix.firstIndex(of: ":"), suffix.index(suffix.startIndex, offsetBy: 2))
+    }
+
+    func testDatetimeToken() {
+        let r = render("{{datetime}}")
+        XCTAssertEqual(r.text.count, "yyyy-MM-dd HH:mm".count)
+    }
+
+    func testWeekdayToken() {
+        // 2023-11-14 was a Tuesday in UTC.
+        let r = render("{{weekday}}", date: weekday2)
+        XCTAssertTrue(["Monday", "Tuesday", "Wednesday"].contains(r.text),
+                      "weekday shape sanity check; got: \(r.text)")
+    }
+
+    func testUuidTokenLengthAndDashes() {
+        let r = render("{{uuid}}")
+        XCTAssertEqual(r.text.count, 36, "standard UUID string length")
+        XCTAssertEqual(r.text.filter { $0 == "-" }.count, 4)
+    }
+
+    func testUuidTokenIsFreshEachCall() {
+        XCTAssertNotEqual(render("{{uuid}}").text, render("{{uuid}}").text)
+    }
+
+    // MARK: date arg variants
+
+    func testDateLongFormat() {
+        let r = render("{{date:long}}",
+                       date: Date(timeIntervalSince1970: 1_700_000_000))
+        XCTAssertTrue(r.text.contains("November"), "got: \(r.text)")
+        XCTAssertTrue(r.text.contains("2023"))
+    }
+
+    func testDateIsoFormat() {
+        let r = render("{{date:iso}}", date: epoch)
+        XCTAssertEqual(r.text, "1970-01-01T00:00:00Z")
+    }
+
+    func testDateRelativeOffsetPlusOneDay() {
+        let r = render("{{date:+1d}}", date: epoch)
+        XCTAssertEqual(r.text, "1970-01-02")
+    }
+
+    func testDateRelativeOffsetMinusOneWeek() {
+        // 1970-01-08 minus a week = 1970-01-01
+        let start = Date(timeIntervalSince1970: 7 * 86_400)
+        let r = render("{{date:-1w}}", date: start)
+        XCTAssertEqual(r.text, "1970-01-01")
+    }
+
+    func testDateRelativeOffsetPlusOneMonth() {
+        let r = render("{{date:+1m}}", date: epoch)
+        XCTAssertEqual(r.text, "1970-02-01")
+    }
+
+    func testDateRelativeOffsetPlusOneYear() {
+        let r = render("{{date:+1y}}", date: epoch)
+        XCTAssertEqual(r.text, "1971-01-01")
+    }
+
+    func testDateCustomFormatPassedThrough() {
+        let r = render("{{date:yyyy}}", date: epoch)
+        XCTAssertEqual(r.text, "1970")
+    }
+
+    // MARK: {{cursor}}
+
+    func testCursorTokenRemovedFromOutput() {
+        let r = render("Hi {{cursor}}!")
+        XCTAssertEqual(r.text, "Hi !")
+    }
+
+    func testCursorTokenOffsetIsAtItsPosition() {
+        let r = render("Hi {{cursor}}!")
+        XCTAssertEqual(r.cursorOffset, 3, "right after 'Hi '")
+    }
+
+    func testCursorOffsetIsNilWhenNoToken() {
+        let r = render("Hi there")
+        XCTAssertNil(r.cursorOffset)
+    }
+
+    func testFirstCursorTokenWinsOverDuplicates() {
+        let r = render("a{{cursor}}b{{cursor}}c")
+        XCTAssertEqual(r.text, "abc")
+        XCTAssertEqual(r.cursorOffset, 1, "first one's position wins")
+    }
+
+    func testCursorMixedWithOtherTokens() {
+        let r = render("Dear {{cursor}},\n\nBest,\n{{name}}",
+                       username: "alice")
+        XCTAssertEqual(r.text, "Dear ,\n\nBest,\nalice")
+        XCTAssertEqual(r.cursorOffset, 5)
     }
 }

@@ -22,7 +22,12 @@ protocol PasteStrategy: AnyObject {
     // Erase `eraseCount` chars from the focused text field, then insert
     // `text`. Implementations are free to use any IME-safe mechanism;
     // the System layer uses backspace + NSPasteboard + Cmd+V.
-    func expand(eraseCount: Int, insert text: String)
+    //
+    // `cursorOffset` is the grapheme position inside `text` where the
+    // caret should land after the paste finishes — used by the
+    // `{{cursor}}` template token. `nil` means "leave the caret at the
+    // end of the pasted text" (host-app default).
+    func expand(eraseCount: Int, insert text: String, cursorOffset: Int?)
 }
 
 final class Engine {
@@ -86,7 +91,8 @@ final class Engine {
                 let rendered = Template.render(trigger.content,
                                                context: renderContext())
                 paste.expand(eraseCount: trigger.trigger.count,
-                             insert: rendered)
+                             insert: rendered.text,
+                             cursorOffset: rendered.cursorOffset)
                 buffer.reset()
             }
             return true
