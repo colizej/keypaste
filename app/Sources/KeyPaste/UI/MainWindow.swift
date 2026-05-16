@@ -10,13 +10,18 @@ import SwiftUI
 // stays a menu-bar app with no Dock icon. But .accessory windows
 // don't get foregrounded by activate(ignoringOtherApps:) — the editor
 // would open invisibly behind the active app. show() flips to .regular
-// while the window is visible and reverts to .accessory when it closes,
-// via the NSWindowDelegate hook below.
+// while the window is visible and reverts to .accessory in
+// windowWillClose. orderFrontRegardless() and the explicit
+// setContentSize after assigning contentViewController are belt-and-
+// suspenders for NSHostingController not always forcing a layout pass
+// on first show.
 
 @MainActor
 final class MainWindowController: NSObject, NSWindowDelegate {
     let viewModel: TriggerListViewModel
     private let window: NSWindow
+
+    private static let contentSize = NSSize(width: 760, height: 480)
 
     init(store: TriggerStore) {
         self.viewModel = TriggerListViewModel(store: store)
@@ -25,13 +30,15 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         let host = NSHostingController(rootView: root)
 
         self.window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 480),
+            contentRect: NSRect(origin: .zero, size: Self.contentSize),
             styleMask: [.titled, .closable, .resizable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
         window.title = "KeyPaste — Triggers"
+        window.minSize = Self.contentSize
         window.contentViewController = host
+        window.setContentSize(Self.contentSize)
         window.center()
         window.setFrameAutosaveName("KeyPasteMain")
         window.isReleasedWhenClosed = false
@@ -41,13 +48,16 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        Logger.info("MainWindow.show invoked")
         viewModel.reload()
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
 
     func windowWillClose(_ notification: Notification) {
+        Logger.info("MainWindow closed; reverting to .accessory policy")
         NSApp.setActivationPolicy(.accessory)
     }
 }
